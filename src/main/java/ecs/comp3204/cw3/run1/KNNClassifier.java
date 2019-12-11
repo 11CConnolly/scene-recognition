@@ -5,7 +5,6 @@ import org.openimaj.data.dataset.VFSGroupDataset;
 import org.openimaj.data.dataset.VFSListDataset;
 import org.openimaj.feature.FloatFV;
 import org.openimaj.feature.FloatFVComparator;
-import org.openimaj.feature.FloatFVComparison;
 import org.openimaj.image.FImage;
 
 import java.util.*;

@@ -1,4 +1,4 @@
-package ecs.comp3204.cw3.run1;
+package ecs.comp3204.cw3.run2;
 
 import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.vfs2.FileSystemException;
@@ -26,15 +26,19 @@ import java.util.*;
  */
 public class App {
 
-    // k value for the classifier
-    private final static int k = 28;
+    // patch size is 8*8
+    private final static int patchSize = 8;
+    // patches per image
+    private final static int numPatches = 8;
+    // ~500 clusters as said in spec
+    private final static int clusters = 500;
 
     public static void main (String[] args) throws Exception {
 
-        System.out.println("This is run 1!");
+        System.out.println("This is run 2!");
 
         // Setup a new classifier
-        KNNClassifier classifier = new KNNClassifier();
+        LinearClassifier classifier = new LinearClassifier(patchSize, numPatches, clusters);
 
         // input data from url directly
         VFSGroupDataset<FImage> trainingSet = new VFSGroupDataset<>("zip:http://comp3204.ecs.soton.ac.uk/cw/training.zip", ImageUtilities.FIMAGE_READER);
@@ -42,7 +46,7 @@ public class App {
         trainingSet.remove("training");
         System.out.println("Number of Categories provided: " + (trainingSet.size()));
         //add the training data to the classifier
-        classifier.addTrainingData(trainingSet, k);
+        classifier.addTrainingData(trainingSet);
 
         File folder = new File("./data/testing");
         File[] files = folder.listFiles();
@@ -66,7 +70,7 @@ public class App {
             }
         });
 
-        String pathname = "run1.txt";
+        String pathname = "run2.txt";
         File run1output = new File(pathname);
         if (!run1output.exists()) {
             run1output.createNewFile();
@@ -78,7 +82,7 @@ public class App {
         for (File file : files) {
             if (file.isFile()) {
                 FImage fi = ImageUtilities.readF(file);
-                String guess = classifier.classify(fi,k);
+                String guess = classifier.classify(fi);
                 String output = file.getName()+" "+guess+"\n";
                 //System.out.println(output);
                 bw.write(output);

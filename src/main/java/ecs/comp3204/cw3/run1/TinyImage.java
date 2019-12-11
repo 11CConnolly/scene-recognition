@@ -68,18 +68,6 @@ public class TinyImage {
         }
     }
 
-    public FImage getOriginal() {
-        return this.originalImage;
-    }
-
-    public FImage getSquaredOriginal() {
-        return this.squaredOriginal;
-    }
-
-    public FImage getTinyImage() {
-        return this.tinyImage;
-    }
-
     // get vector value of the image
     public FloatFV getImageVector() {
 
