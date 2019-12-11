@@ -1,5 +1,6 @@
 package ecs.comp3204.cw3.run1;
 
+import org.apache.commons.io.comparator.NameFileComparator;
 import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.impl.StandardFileSystemManager;
 import org.openimaj.data.dataset.VFSGroupDataset;
@@ -13,10 +14,11 @@ import org.openimaj.image.colour.RGBColour;
 import org.openimaj.image.processing.convolution.FGaussianConvolve;
 import org.openimaj.image.typography.hershey.HersheyFont;
 
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Run1
@@ -37,19 +39,52 @@ public class App {
         VFSGroupDataset<FImage> trainingSet = new VFSGroupDataset<>("zip:http://comp3204.ecs.soton.ac.uk/cw/training.zip", ImageUtilities.FIMAGE_READER);
         // the group named "training" contains all the images in the zip, we do not need it!
         trainingSet.remove("training");
-        System.out.println("Number of Categories: " + (trainingSet.size()));
+        System.out.println("Number of Categories provided: " + (trainingSet.size()));
         //add the training data to the classifier
         classifier.addTrainingData(trainingSet, k);
 
+        File folder = new File("./data/testing");
+        File[] files = folder.listFiles();
+        // sort the outputs in numberic order instead of 1, 10, 100...
+        Arrays.sort(files, new Comparator<File>() {
+            @Override
+            public int compare(File o1, File o2) {
+                // get filename of files e.g. "1.jpg"
+                String f1 = o1.getName();
+                String f2 = o2.getName();
 
-        // I WILL FIX LATER LET ME SLEEP
-//        File folder = new File("./data/testing");
-//        File[] listOfFiles = folder.listFiles();
-//        for (File file : listOfFiles) {
-//            if (file.isFile()) {
-//                classifier.classify(new FImage(file),k);
-//            }
-//        }
+                // remove extensions ".jpg"
+                f1 = f1.substring(0, f1.indexOf("."));
+                f2 = f2.substring(0, f2.indexOf("."));
+
+                int int1 = Integer.parseInt(f1);
+                int int2 = Integer.parseInt(f2);
+
+                // return compared results
+                return int1-int2;
+            }
+        });
+
+        String pathname = "run1.txt";
+        File run1output = new File(pathname);
+        if (!run1output.exists()) {
+            run1output.createNewFile();
+        }
+
+        // writing to file "run1.txt"
+        BufferedWriter bw = new BufferedWriter(new FileWriter(run1output));
+
+        for (File file : files) {
+            if (file.isFile()) {
+                FImage fi = ImageUtilities.readF(file);
+                String guess = classifier.classify(fi,k);
+                String output = file.getName()+" "+guess+"\n";
+                //System.out.println(output);
+                bw.write(output);
+            }
+        }
+        System.out.println("Successfully written output to file " + pathname + "!");
+        bw.close();
     }
 
 
