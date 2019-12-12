@@ -89,6 +89,7 @@ public class KNNClassifier implements FloatFVComparator {
         }
     }
 
+    // for testing purposes
     public void displayCategories() {
         for (FloatFV fv: categories.keySet()){
             String key = fv.toString();

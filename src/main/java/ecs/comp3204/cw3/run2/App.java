@@ -28,8 +28,8 @@ public class App {
 
     // patch size is 8*8
     private final static int patchSize = 8;
-    // patches per image
-    private final static int numPatches = 8;
+    // patch distance
+    private final static int patchDistance = 8;
     // ~500 clusters as said in spec
     private final static int clusters = 500;
 
@@ -38,7 +38,7 @@ public class App {
         System.out.println("This is run 2!");
 
         // Setup a new classifier
-        LinearClassifier classifier = new LinearClassifier(patchSize, numPatches, clusters);
+        LinearClassifier classifier = new LinearClassifier(patchSize, patchDistance, clusters);
 
         // input data from url directly
         VFSGroupDataset<FImage> trainingSet = new VFSGroupDataset<>("zip:http://comp3204.ecs.soton.ac.uk/cw/training.zip", ImageUtilities.FIMAGE_READER);
