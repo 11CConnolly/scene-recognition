@@ -1,26 +1,14 @@
-package ecs.comp3204.cw3.run2;
+package ecs.comp3204.cw3.run2_nope;
 
 
 import de.bwaldvogel.liblinear.SolverType;
-import ecs.comp3204.cw3.run1.TinyImage;
 import org.openimaj.data.dataset.VFSGroupDataset;
 import org.openimaj.data.dataset.VFSListDataset;
-import org.openimaj.experiment.evaluation.classification.ClassificationResult;
-import org.openimaj.experiment.evaluation.classification.Classifier;
 import org.openimaj.feature.*;
 import org.openimaj.image.FImage;
-import org.openimaj.image.annotation.evaluation.datasets.Caltech101;
-import org.openimaj.image.feature.dense.gradient.dsift.PyramidDenseSIFT;
-import org.openimaj.image.feature.local.aggregate.BagOfVisualWords;
-import org.openimaj.image.feature.local.aggregate.BlockSpatialAggregator;
-import org.openimaj.ml.annotation.Annotated;
 import org.openimaj.ml.annotation.linear.LiblinearAnnotator;
-import org.openimaj.ml.clustering.assignment.HardAssigner;
-import org.openimaj.util.pair.IntFloatPair;
 
-import java.util.HashSet;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
 
 import static org.openimaj.feature.FloatFVComparison.EUCLIDEAN;
@@ -32,7 +20,7 @@ public class LinearClassifier {
     int clusters;
     VocabsExtractor ve;
 
-    LinkedList<FloatFV> fv = new LinkedList<>();
+    LinkedList<FloatFV> bagOfWords = new LinkedList<>();
 
     // Default Setting
     public LinearClassifier() {
@@ -60,29 +48,30 @@ public class LinearClassifier {
 
         LinkedList<FloatFV> vectorList = new LinkedList<>();
         PatchExtractor pe = new PatchExtractor(this.patchSize, this.patchDistance);
-        int n = 0;
 
         // separating the data into categories
         for (final Map.Entry<String, VFSListDataset<FImage>> entry : data.entrySet()) {
             for (FImage img : entry.getValue()) {
-                vectorList.add(getVector(img));
-                n += 1;
+                FloatFV ffv = getVector(img);
+                System.out.println(ffv);
+                System.out.println();
+                vectorList.add(ffv);
             }
         }
 
-        System.out.println(n);
+        //System.out.println(n);
         System.out.println(vectorList.size());
-
-        LinkedList<FloatFV> bagOfWords = new LinkedList<>();
 
         for (FloatFV f : vectorList) {
             bagOfWords.add(f);
         }
 
+        this.ve = new VocabsExtractor(bagOfWords,patchSize,patchDistance);
+
         LiblinearAnnotator<FImage, String> ann = new LiblinearAnnotator<>(
-                new VocabsExtractor(bagOfWords,patchSize,patchDistance), LiblinearAnnotator.Mode.MULTICLASS, SolverType.L2R_L2LOSS_SVC, 1.0, 0.00001);
+                ve, LiblinearAnnotator.Mode.MULTICLASS, SolverType.L2R_L2LOSS_SVC, 1.0, 0.00001);
         System.out.println("Training starts!");
-        ann.train(data);
+        //ann.train(data);
         System.out.println("Training completes!");
     }
 

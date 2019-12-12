@@ -121,7 +121,7 @@ public class Ch12 {
         return result.defaultHardAssigner();
     }
 
-    static class PHOWExtractor implements FeatureExtractor<DoubleFV, Caltech101.Record<FImage>> {
+    public static class PHOWExtractor implements FeatureExtractor<DoubleFV, Caltech101.Record<FImage>> {
         PyramidDenseSIFT<FImage> pdsift;
         HardAssigner<byte[], float[], IntFloatPair> assigner;
         public PHOWExtractor(PyramidDenseSIFT<FImage> pdsift, HardAssigner<byte[], float[], IntFloatPair> assigner)
