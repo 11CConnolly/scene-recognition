@@ -1,31 +1,35 @@
 package ecs.comp3204.cw3.run2;
 
+import de.bwaldvogel.liblinear.SolverType;
 import org.apache.commons.vfs2.FileSystemException;
 import org.openimaj.data.DataSource;
 import org.openimaj.data.dataset.VFSGroupDataset;
 import org.openimaj.data.dataset.VFSListDataset;
 import org.openimaj.feature.*;
 import org.openimaj.feature.local.data.LocalFeatureListDataSource;
+import org.openimaj.feature.local.list.FileLocalFeatureList;
 import org.openimaj.feature.local.list.LocalFeatureList;
+import org.openimaj.feature.local.list.MemoryLocalFeatureList;
+import org.openimaj.feature.local.list.StreamLocalFeatureList;
 import org.openimaj.image.DisplayUtilities;
 import org.openimaj.image.FImage;
 import org.openimaj.image.ImageUtilities;
 import org.openimaj.image.feature.local.aggregate.BagOfVisualWords;
 import org.openimaj.image.feature.local.keypoints.FloatKeypoint;
+import org.openimaj.ml.annotation.ScoredAnnotation;
+import org.openimaj.ml.annotation.linear.LiblinearAnnotator;
 import org.openimaj.ml.clustering.FloatCentroidsResult;
 import org.openimaj.ml.clustering.assignment.HardAssigner;
 import org.openimaj.ml.clustering.kmeans.FloatKMeans;
 import org.openimaj.util.list.RandomisableList;
 import org.openimaj.util.pair.IntFloatPair;
 
-import java.io.DataOutput;
-import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.*;
 import java.util.*;
 
 public class App {
 
-    public static void main(String[] args) throws FileSystemException {
+    public static void main(String[] args) throws IOException {
 
         System.out.println("This is run2");
 
@@ -38,32 +42,89 @@ public class App {
         // the training folder contains everything, do not want anything to be named training xD
         trainingSet.remove("training");
 
-        // Manually removing categories by commenting them out so it is easy to test
-        //trainingSet.remove("bedroom");
-        trainingSet.remove("Coast");
-        trainingSet.remove("Forest");
-        trainingSet.remove("Highway");
-        trainingSet.remove("industrial");
-        trainingSet.remove("Insidecity");
-        trainingSet.remove("kitchen");
-        trainingSet.remove("livingroom");
-        trainingSet.remove("Mountain");
-        trainingSet.remove("Office");
-        trainingSet.remove("OpenCountry");
-        trainingSet.remove("store");
-        trainingSet.remove("Street");
-        trainingSet.remove("Suburb");
-        trainingSet.remove("TallBuilding");
+        //Manually removing categories by commenting them out so it is easier to test
+//        trainingSet.remove("bedroom");
+//        trainingSet.remove("Coast");
+//        trainingSet.remove("Forest");
+//        trainingSet.remove("Highway");
+//        trainingSet.remove("industrial");
+//        trainingSet.remove("Insidecity");
+//        trainingSet.remove("kitchen");
+//        trainingSet.remove("livingroom");
+//        trainingSet.remove("Mountain");
+//        trainingSet.remove("Office");
+//        trainingSet.remove("OpenCountry");
+//        trainingSet.remove("store");
+//        trainingSet.remove("Street");
+//        trainingSet.remove("Suburb");
+//        trainingSet.remove("TallBuilding");
 
         System.out.println("Number of Categories provided: " + (trainingSet.size()));
 
         PatchExtractor pe = new PatchExtractor(size, step);
 
-        System.out.println("make assigner");
+        System.out.println("Make assigner");
         HardAssigner<float[], float[], IntFloatPair> assigner = trainQuantiser(trainingSet, pe);
-        System.out.println("finished making assigner");
+        System.out.println("Finished making assigner");
 
+        System.out.println("Make extractor");
+        FeatureExtractor<SparseIntFV, FImage> extractor = new BOVWExtractor(pe, assigner);
+        System.out.println("Finished making extractor");
 
+        System.out.println("Make annotator");
+        LiblinearAnnotator<FImage, String> ann = new LiblinearAnnotator<>(
+                extractor, LiblinearAnnotator.Mode.MULTICLASS, SolverType.L2R_L2LOSS_SVC, 1.0, 0.00001);
+        System.out.println("Finished making annotator");
+        System.out.println("Start training");
+        ann.train(trainingSet);
+        System.out.println("Finished training");
+
+        File folder = new File("./data/testing");
+        File[] files = folder.listFiles();
+        // sort the outputs in numberic order instead of 1, 10, 100...
+        Arrays.sort(files, new Comparator<File>() {
+            @Override
+            public int compare(File o1, File o2) {
+                // get filename of files e.g. "1.jpg"
+                String f1 = o1.getName();
+                String f2 = o2.getName();
+
+                // remove extensions ".jpg"
+                f1 = f1.substring(0, f1.indexOf("."));
+                f2 = f2.substring(0, f2.indexOf("."));
+
+                int int1 = Integer.parseInt(f1);
+                int int2 = Integer.parseInt(f2);
+
+                // return compared results
+                return int1-int2;
+            }
+        });
+
+        String pathname = "run2.txt";
+        File run2output = new File(pathname);
+        if (!run2output.exists()) {
+            run2output.createNewFile();
+        }
+
+        // writing to file "run2.txt"
+        BufferedWriter bw = new BufferedWriter(new FileWriter(run2output));
+
+        for (File file : files) {
+            if (file.isFile()) {
+                FImage fi = ImageUtilities.readF(file);
+                List<ScoredAnnotation<String>> list = ann.annotate(fi);
+                String guess = list.toString();
+                int finalChar = guess.indexOf(",");
+                guess = guess.substring(2,finalChar);
+
+                String output = file.getName()+" "+guess+"\n";
+                System.out.println(output);
+                bw.write(output);
+            }
+        }
+        System.out.println("Successfully written output to file " + pathname + "!");
+        bw.close();
     }
 
     // the machine to extract data
@@ -92,162 +153,14 @@ public class App {
         }
 
         public LocalFeatureList<FloatKeypoint> analyseImage(FImage img) {
-            LocalFeatureList<FloatKeypoint> floatKPList = new LocalFeatureList<FloatKeypoint>() {
-                @Override
-                public <Q> Q[] asDataArray(Q[] a) {
-                    return null;
-                }
-
-                @Override
-                public int vecLength() {
-                    return 0;
-                }
-
-                @Override
-                public LocalFeatureList<FloatKeypoint> subList(int fromIndex, int toIndex) {
-                    return null;
-                }
-
-                @Override
-                public RandomisableList<FloatKeypoint> randomSubList(int nelem) {
-                    return null;
-                }
-
-                @Override
-                public int size() {
-                    return 0;
-                }
-
-                @Override
-                public boolean isEmpty() {
-                    return false;
-                }
-
-                @Override
-                public boolean contains(Object o) {
-                    return false;
-                }
-
-                @Override
-                public Iterator<FloatKeypoint> iterator() {
-                    return null;
-                }
-
-                @Override
-                public Object[] toArray() {
-                    return new Object[0];
-                }
-
-                @Override
-                public <T> T[] toArray(T[] a) {
-                    return null;
-                }
-
-                @Override
-                public boolean add(FloatKeypoint floatKeypoint) {
-                    return false;
-                }
-
-                @Override
-                public boolean remove(Object o) {
-                    return false;
-                }
-
-                @Override
-                public boolean containsAll(Collection<?> c) {
-                    return false;
-                }
-
-                @Override
-                public boolean addAll(Collection<? extends FloatKeypoint> c) {
-                    return false;
-                }
-
-                @Override
-                public boolean addAll(int index, Collection<? extends FloatKeypoint> c) {
-                    return false;
-                }
-
-                @Override
-                public boolean removeAll(Collection<?> c) {
-                    return false;
-                }
-
-                @Override
-                public boolean retainAll(Collection<?> c) {
-                    return false;
-                }
-
-                @Override
-                public void clear() {
-
-                }
-
-                @Override
-                public FloatKeypoint get(int index) {
-                    return null;
-                }
-
-                @Override
-                public FloatKeypoint set(int index, FloatKeypoint element) {
-                    return null;
-                }
-
-                @Override
-                public void add(int index, FloatKeypoint element) {
-
-                }
-
-                @Override
-                public FloatKeypoint remove(int index) {
-                    return null;
-                }
-
-                @Override
-                public int indexOf(Object o) {
-                    return 0;
-                }
-
-                @Override
-                public int lastIndexOf(Object o) {
-                    return 0;
-                }
-
-                @Override
-                public ListIterator<FloatKeypoint> listIterator() {
-                    return null;
-                }
-
-                @Override
-                public ListIterator<FloatKeypoint> listIterator(int index) {
-                    return null;
-                }
-
-                @Override
-                public void writeASCII(PrintWriter out) throws IOException {
-
-                }
-
-                @Override
-                public String asciiHeader() {
-                    return null;
-                }
-
-                @Override
-                public void writeBinary(DataOutput out) throws IOException {
-
-                }
-
-                @Override
-                public byte[] binaryHeader() {
-                    return new byte[0];
-                }
-            };
+            LocalFeatureList<FloatKeypoint> floatKPList = new MemoryLocalFeatureList<>();
             LinkedList<FImage> patches = getPatches(img);
+            //System.out.println("Patches: " + patches.size());
             for (FImage patch : patches) {
                 FloatKeypoint fkp = new FloatKeypoint(0, 0, 0, 0, getVector(patch));
                 floatKPList.add(fkp);
             }
+            //System.out.println("FloatKeyPoint List: " + floatKPList.size()); // this return 0
             return floatKPList;
         }
 
@@ -280,13 +193,14 @@ public class App {
     }
 
     private static HardAssigner<float[], float[], IntFloatPair> trainQuantiser(VFSGroupDataset<FImage> dataset, PatchExtractor p) {
-        List<LocalFeatureList<FloatKeypoint>> allVectors = new ArrayList<LocalFeatureList<FloatKeypoint>>();
+        LocalFeatureList<FloatKeypoint> allVectors = new MemoryLocalFeatureList<>();
         for (final Map.Entry<String, VFSListDataset<FImage>> entry : dataset.entrySet()) {
             for (FImage img : entry.getValue()) {
-                allVectors.add(p.analyseImage(img));
+                allVectors.addAll(p.analyseImage(img));
             }
         }
-        System.out.println(allVectors.size());
+        //System.out.println();
+        System.out.println("Total vector size: " + allVectors.size());
         if (allVectors.size() > 10000) {
             allVectors = allVectors.subList(0, 10000);
         }
@@ -311,7 +225,7 @@ public class App {
         public SparseIntFV extractFeature(FImage object) {
 
             SparseIntFV sffv;
-            BagOfVisualWords<float[]> bovw = new BagOfVisualWords<float[]>(assigner);
+            BagOfVisualWords<float[]> bovw = new BagOfVisualWords<>(assigner);
 
             sffv = bovw.aggregate(pe.analyseImage(object));
 
