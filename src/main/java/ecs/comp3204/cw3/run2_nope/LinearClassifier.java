@@ -74,7 +74,6 @@ public class LinearClassifier {
         //ann.train(data);
         System.out.println("Training completes!");
     }
-
     // get vector of image
     private FloatFV getVector (FImage image) {
         FloatFV ffv;
