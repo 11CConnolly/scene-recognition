@@ -16,11 +16,11 @@ public class KNNClassifier implements FloatFVComparator {
     HashMap<FloatFV, String> categories = new HashMap<>();
 
     // takes an image and a k value, returns the guess of which category the image belongs to
-    public String classify (FImage image, int k) {
+    public String classify (FImage image, int k, int size) {
 
         String guess = null;
         // create a tiny image of the image provided
-        TinyImage tinyImage = new TinyImage(image, k);
+        TinyImage tinyImage = new TinyImage(image, size);
 
         FloatFV fv = tinyImage.getImageVector();
         //System.out.println(fv);
@@ -77,12 +77,12 @@ public class KNNClassifier implements FloatFVComparator {
     }
 
     // importing training data
-    public void addTrainingData(VFSGroupDataset<FImage> data, int k) {
+    public void addTrainingData(VFSGroupDataset<FImage> data, int size) {
         // separating the data into categories
         for (final Map.Entry<String, VFSListDataset<FImage>> entry : data.entrySet()) {
             for (FImage img : entry.getValue()) {
                 // for each image, create a tiny image
-                TinyImage ti = new TinyImage(img,k);
+                TinyImage ti = new TinyImage(img,size);
                 // add the (vector,categoryName) to the hashmap
                 categories.put(ti.getImageVector(), entry.getKey());
             }
@@ -114,12 +114,4 @@ public class KNNClassifier implements FloatFVComparator {
         return true;
     }
 }
-
-//        -----Code from Tutorial-----
-//        // Display the categories
-//        for (final Map.Entry<String, VFSListDataset<FImage>> entry : trainingSet.entrySet()) {
-//            DisplayUtilities.display(entry.getKey(), entry.getValue());
-//            DisplayUtilities.display(entry.getKey(), entry.getValue().getInstance(new Random().nextInt(entry.getValue().size())));
-//        }
-//        -----------------------------
 

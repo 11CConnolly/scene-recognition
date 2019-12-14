@@ -28,6 +28,7 @@ public class App {
 
     // k value for the classifier
     private final static int k = 28;
+    private final static int size = 16;
 
     public static void main (String[] args) throws Exception {
 
@@ -42,7 +43,7 @@ public class App {
         trainingSet.remove("training");
         System.out.println("Number of Categories provided: " + (trainingSet.size()));
         //add the training data to the classifier
-        classifier.addTrainingData(trainingSet, k);
+        classifier.addTrainingData(trainingSet, size);
 
         File folder = new File("./data/testing");
         File[] files = folder.listFiles();
@@ -78,7 +79,7 @@ public class App {
         for (File file : files) {
             if (file.isFile()) {
                 FImage fi = ImageUtilities.readF(file);
-                String guess = classifier.classify(fi,k);
+                String guess = classifier.classify(fi,k,size);
                 String output = file.getName()+" "+guess+"\n";
                 //System.out.println(output);
                 bw.write(output);
