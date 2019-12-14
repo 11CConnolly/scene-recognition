@@ -1,4 +1,4 @@
-package ecs.comp3204.cw3.run2;
+package ecs.comp3204.cw3.run3;
 
 import de.bwaldvogel.liblinear.SolverType;
 import org.apache.commons.vfs2.FileSystemException;
@@ -14,13 +14,22 @@ import org.openimaj.feature.local.list.StreamLocalFeatureList;
 import org.openimaj.image.DisplayUtilities;
 import org.openimaj.image.FImage;
 import org.openimaj.image.ImageUtilities;
+import org.openimaj.image.annotation.evaluation.datasets.Caltech101;
+import org.openimaj.image.feature.dense.gradient.dsift.ByteDSIFTKeypoint;
+import org.openimaj.image.feature.dense.gradient.dsift.DenseSIFT;
+import org.openimaj.image.feature.dense.gradient.dsift.PyramidDenseSIFT;
 import org.openimaj.image.feature.local.aggregate.BagOfVisualWords;
+import org.openimaj.image.feature.local.aggregate.BlockSpatialAggregator;
+import org.openimaj.image.feature.local.aggregate.PyramidSpatialAggregator;
 import org.openimaj.image.feature.local.keypoints.FloatKeypoint;
 import org.openimaj.ml.annotation.ScoredAnnotation;
 import org.openimaj.ml.annotation.linear.LiblinearAnnotator;
+import org.openimaj.ml.clustering.ByteCentroidsResult;
 import org.openimaj.ml.clustering.FloatCentroidsResult;
 import org.openimaj.ml.clustering.assignment.HardAssigner;
+import org.openimaj.ml.clustering.kmeans.ByteKMeans;
 import org.openimaj.ml.clustering.kmeans.FloatKMeans;
+import org.openimaj.ml.kernel.HomogeneousKernelMap;
 import org.openimaj.util.list.RandomisableList;
 import org.openimaj.util.pair.IntFloatPair;
 
@@ -31,7 +40,7 @@ public class App {
 
     public static void main(String[] args) throws IOException {
 
-        System.out.println("This is run #2");
+        System.out.println("This is run #3");
 
         // key parameters
         final int size = 8; // 8*8
@@ -42,7 +51,7 @@ public class App {
         // the training folder contains everything, do not want anything to be named training xD
         trainingSet.remove("training");
 
-        //Manually removing categories by commenting them out so it is easier to test
+//        //Manually removing categories by commenting them out so it is easier to test
 //        trainingSet.remove("bedroom");
 //        trainingSet.remove("Coast");
 //        trainingSet.remove("Forest");
@@ -61,19 +70,24 @@ public class App {
 
         System.out.println("Number of Categories provided: " + (trainingSet.size()));
 
-        PatchExtractor pe = new PatchExtractor(size, step);
+        DenseSIFT dsift = new DenseSIFT(4, 10);
+        PyramidDenseSIFT<FImage> pdsift = new PyramidDenseSIFT<>(dsift, 6f,  4,8);
 
         System.out.println("Make assigner");
-        HardAssigner<float[], float[], IntFloatPair> assigner = trainQuantiser(trainingSet, pe);
+        HardAssigner<byte[], float[], IntFloatPair> assigner = trainQuantiser(trainingSet, pdsift);
         System.out.println("Finished making assigner");
 
+        // creates a homogeneous kernel map
+        HomogeneousKernelMap hkm = new HomogeneousKernelMap(HomogeneousKernelMap.KernelType.Chi2, HomogeneousKernelMap.WindowType.Rectangular);
+        System.out.println("Homogeneous Kernel Map created");
+
         System.out.println("Make extractor");
-        FeatureExtractor<SparseIntFV, FImage> extractor = new BOVWExtractor(pe, assigner);
+        FeatureExtractor<DoubleFV, FImage> extractor = hkm.createWrappedExtractor(new PHOWExtractor(pdsift, assigner));
         System.out.println("Finished making extractor");
 
         System.out.println("Make annotator");
         LiblinearAnnotator<FImage, String> ann = new LiblinearAnnotator<>(
-                extractor, LiblinearAnnotator.Mode.MULTICLASS, SolverType.L2R_L2LOSS_SVC, 1.0, 0.00001);
+                extractor, LiblinearAnnotator.Mode.MULTICLASS, SolverType.L2R_L2LOSS_SVC, 1.2, 0.00001);
         System.out.println("Finished making annotator");
         System.out.println("Start training");
         ann.train(trainingSet);
@@ -101,13 +115,13 @@ public class App {
             }
         });
 
-        String pathname = "run2.txt";
+        String pathname = "run3.txt";
         File run2output = new File(pathname);
         if (!run2output.exists()) {
             run2output.createNewFile();
         }
 
-        // writing to file "run2.txt"
+        // writing to file "run3.txt"
         BufferedWriter bw = new BufferedWriter(new FileWriter(run2output));
 
         for (File file : files) {
@@ -127,109 +141,43 @@ public class App {
         bw.close();
     }
 
-    // the machine to extract data
-    private static class PatchExtractor {
 
-        // size of each patch
-        int pSize;
-        // distance between each patch
-        int pDist;
-
-        public PatchExtractor(int patchSize, int dist) {
-            this.pSize = patchSize;
-            this.pDist = dist;
-        }
-
-        public LinkedList<FImage> getPatches(FImage image) {
-            LinkedList<FImage> patches = new LinkedList<>();
-            for (int i = 0; i < image.width; i += pDist) {
-                for (int j = 0; j < image.height; j += pDist) {
-                    FImage patch = image.extractROI(i, j, pSize, pSize);
-                    patch = patch.normalise();
-                    patches.add(patch);
-                }
-            }
-            return patches;
-        }
-
-        public LocalFeatureList<FloatKeypoint> analyseImage(FImage img) {
-            LocalFeatureList<FloatKeypoint> floatKPList = new MemoryLocalFeatureList<>();
-            LinkedList<FImage> patches = getPatches(img);
-            //System.out.println("Patches: " + patches.size());
-            for (FImage patch : patches) {
-                FloatKeypoint fkp = new FloatKeypoint(0, 0, 0, 0, getVector(patch));
-                floatKPList.add(fkp);
-            }
-            //System.out.println("FloatKeyPoint List: " + floatKPList.size()); // this return 0
-            return floatKPList;
-        }
-
-        // get FloatFV of image
-        public FloatFV getFloatFV(FImage image) {
-            FloatFV ffv;
-            float[] vector = new float[image.height * image.width];
-
-            for (int i = 0; i < image.height; i++) {
-                for (int j = 0; j < image.width; j++) {
-                    vector[i * image.width + j] = image.pixels[i][j];
-                }
-            }
-            ffv = new FloatFV(vector);
-            return ffv;
-        }
-
-        // get vector of image
-        public float[] getVector(FImage image) {
-            float[] vector = new float[image.height * image.width];
-
-            for (int i = 0; i < image.height; i++) {
-                for (int j = 0; j < image.width; j++) {
-                    vector[i * image.width + j] = image.pixels[i][j];
-                }
-            }
-            return vector;
-        }
-
-    }
-
-    private static HardAssigner<float[], float[], IntFloatPair> trainQuantiser(VFSGroupDataset<FImage> dataset, PatchExtractor p) {
-        LocalFeatureList<FloatKeypoint> allVectors = new MemoryLocalFeatureList<>();
+    private static HardAssigner<byte[], float[], IntFloatPair> trainQuantiser(VFSGroupDataset<FImage> dataset, PyramidDenseSIFT<FImage> pdsift) {
+        LocalFeatureList<ByteDSIFTKeypoint> allFeatures = new MemoryLocalFeatureList<>();
         for (final Map.Entry<String, VFSListDataset<FImage>> entry : dataset.entrySet()) {
             for (FImage img : entry.getValue()) {
-                allVectors.addAll(p.analyseImage(img));
+                pdsift.analyseImage(img);
+                allFeatures.addAll(pdsift.getByteKeypoints(0.005f));
             }
         }
         //System.out.println();
-        System.out.println("Total vector size: " + allVectors.size());
-        if (allVectors.size() > 10000) {
-            allVectors = allVectors.subList(0, 10000);
+        System.out.println("Total number of features: " + allFeatures.size());
+        if (allFeatures.size() > 10000) {
+            allFeatures = allFeatures.subList(0, 10000);
         }
         // try 500 clusters
-        FloatKMeans km = FloatKMeans.createKDTreeEnsemble(500);
-        DataSource<float[]> datasource = new LocalFeatureListDataSource<>(allVectors);
-        FloatCentroidsResult result = km.cluster(datasource);
+        ByteKMeans km = ByteKMeans.createKDTreeEnsemble(500);
+        DataSource<byte[]> datasource = new LocalFeatureListDataSource<>(allFeatures);
+        ByteCentroidsResult result = km.cluster(datasource);
         return result.defaultHardAssigner();
     }
 
-    static class BOVWExtractor implements FeatureExtractor<SparseIntFV, FImage> {
-
-        PatchExtractor pe;
-        HardAssigner<float[], float[], IntFloatPair> assigner;
-
-        public BOVWExtractor(PatchExtractor pe, HardAssigner<float[], float[], IntFloatPair> assigner) {
-            this.pe = pe;
+    public static class PHOWExtractor implements FeatureExtractor<DoubleFV, FImage> {
+        PyramidDenseSIFT<FImage> pdsift;
+        HardAssigner<byte[], float[], IntFloatPair> assigner;
+        public PHOWExtractor(PyramidDenseSIFT<FImage> pdsift, HardAssigner<byte[], float[], IntFloatPair> assigner)
+        {
+            this.pdsift = pdsift;
             this.assigner = assigner;
         }
 
         @Override
-        public SparseIntFV extractFeature(FImage object) {
-
-            SparseIntFV sffv;
-            BagOfVisualWords<float[]> bovw = new BagOfVisualWords<>(assigner);
-
-            sffv = bovw.aggregate(pe.analyseImage(object));
-
-            return sffv;
+        public DoubleFV extractFeature(FImage object) {
+            FImage image = object.getImage();
+            pdsift.analyseImage(image);
+            BagOfVisualWords<byte[]> bovw = new BagOfVisualWords<>(assigner);
+            PyramidSpatialAggregator<byte[], SparseIntFV> spatial = new PyramidSpatialAggregator<>(bovw,2,4);
+            return spatial.aggregate(pdsift.getByteKeypoints(0.015f), image.getBounds()).normaliseFV();
         }
     }
 }

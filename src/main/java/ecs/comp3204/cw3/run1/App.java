@@ -32,7 +32,7 @@ public class App {
 
     public static void main (String[] args) throws Exception {
 
-        System.out.println("This is run 1!");
+        System.out.println("This is run #1!");
 
         // Setup a new classifier
         KNNClassifier classifier = new KNNClassifier();
